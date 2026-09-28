@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}Face Attendance{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+<header class="navbar">
+    <div class="brand">Face Attendance</div>
+    <nav>
+        <a href="/">Dashboard</a>
+        <a href="/students">Sinh viên</a>
+        <a href="/enrollment">Enrollment</a>
+        <a href="/attendance">Điểm danh</a>
+        <a href="/history">Lịch sử</a>
+    </nav>
+</header>
+
+<main class="container">
+    {% block content %}{% endblock %}
+</main>
+
+<script>
+window.API = {
+    students: "/api/students",
+    enrollment: "/api/enrollment",
+    sessions: "/api/sessions",
+    recognize: "/api/recognize",
+    attendance: "/api/attendance"
+};
+</script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

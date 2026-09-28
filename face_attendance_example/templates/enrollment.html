@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block title %}Enrollment{% endblock %}
+{% block content %}
+<h1>Đăng ký khuôn mặt</h1>
+
+<div class="two-col">
+    <div class="card">
+        <h2>Thông tin</h2>
+        <select id="studentSelect">
+            <option value="">-- Chọn sinh viên --</option>
+        </select>
+        <button class="btn" id="startCamera">Bật camera</button>
+        <button class="btn" id="capture" disabled>Chụp & đăng ký</button>
+        <div id="message" class="message"></div>
+    </div>
+
+    <div class="card camera-card">
+        <video id="video" autoplay playsinline></video>
+        <canvas id="canvas" hidden></canvas>
+        <img id="preview" alt="Preview">
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/camera.js') }}"></script>
+<script>
+const select = document.getElementById("studentSelect");
+const video = document.getElementById("video");
+const canvas = document.getElementById("canvas");
+const preview = document.getElementById("preview");
+let stream = null;
+
+async function loadStudents() {
+    const students = await fetch(API.students).then(r => r.json());
+    students.forEach(s => {
+        const option = document.createElement("option");
+        option.value = s.id;
+        option.textContent = `${s.student_code} - ${s.full_name} (${s.class_name})`;
+        select.appendChild(option);
+    });
+
+    const id = new URLSearchParams(location.search).get("student_id");
+    if (id) select.value = id;
+}
+
+document.getElementById("startCamera").onclick = async () => {
+    try {
+        stream = await navigator.mediaDevices.getUserMedia({video: true, audio: false});
+        video.srcObject = stream;
+        document.getElementById("capture").disabled = false;
+    } catch (err) {
+        showMessage("Không mở được camera: " + err.message, false);
+    }
+};
+
+document.getElementById("capture").onclick = async () => {
+    if (!select.value) {
+        showMessage("Hãy chọn sinh viên.", false);
+        return;
+    }
+
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext("2d").drawImage(video, 0, 0);
+    const image = canvas.toDataURL("image/jpeg", 0.9);
+    preview.src = image;
+
+    const res = await fetch(API.enrollment, {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({
+            student_id: Number(select.value),
+            image
+        })
+    });
+
+    const json = await res.json();
+    showMessage(json.error || json.message, res.ok);
+};
+
+function showMessage(text, ok) {
+    const el = document.getElementById("message");
+    el.textContent = text;
+    el.className = ok ? "message success" : "message error";
+}
+
+loadStudents();
+</script>
+{% endblock %}

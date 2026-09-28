@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}Sinh viên{% endblock %}
+{% block content %}
+<h1>Quản lý sinh viên</h1>
+
+<div class="card">
+    <h2>Thêm sinh viên</h2>
+    <form id="studentForm" class="form-grid">
+        <input name="student_code" placeholder="MSSV" required>
+        <input name="full_name" placeholder="Họ tên" required>
+        <input name="class_name" placeholder="Lớp" required>
+        <input name="email" placeholder="Email">
+        <button class="btn primary" type="submit">Thêm</button>
+    </form>
+    <div id="studentMessage" class="message"></div>
+</div>
+
+<div class="card">
+    <h2>Danh sách sinh viên</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>MSSV</th><th>Họ tên</th><th>Lớp</th><th>Khuôn mặt</th><th>Thao tác</th>
+            </tr>
+        </thead>
+        <tbody id="studentTable"></tbody>
+    </table>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function loadStudents() {
+    const students = await fetch(API.students).then(r => r.json());
+    const body = document.getElementById("studentTable");
+    body.innerHTML = students.map(s => `
+        <tr>
+            <td>${escapeHtml(s.student_code)}</td>
+            <td>${escapeHtml(s.full_name)}</td>
+            <td>${escapeHtml(s.class_name)}</td>
+            <td>${s.has_face ? "✓ Đã đăng ký" : "Chưa đăng ký"}</td>
+            <td>
+                <a class="btn small" href="/enrollment?student_id=${s.id}">Enrollment</a>
+                <button class="btn small danger" onclick="deleteStudent(${s.id})">Xóa</button>
+            </td>
+        </tr>
+    `).join("");
+}
+
+function escapeHtml(value) {
+    return String(value ?? "").replace(/[&<>"']/g, c => ({
+        "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#039;"
+    }[c]));
+}
+
+document.getElementById("studentForm").addEventListener("submit", async e => {
+    e.preventDefault();
+    const data = Object.fromEntries(new FormData(e.target).entries());
+    const res = await fetch(API.students, {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify(data)
+    });
+    const json = await res.json();
+    const msg = document.getElementById("studentMessage");
+    msg.textContent = json.error || "Thêm sinh viên thành công.";
+    msg.className = res.ok ? "message success" : "message error";
+    if (res.ok) {
+        e.target.reset();
+        loadStudents();
+    }
+});
+
+async function deleteStudent(id) {
+    if (!confirm("Xóa sinh viên này?")) return;
+    await fetch(`${API.students}/${id}`, {method: "DELETE"});
+    loadStudents();
+}
+
+loadStudents();
+</script>
+{% endblock %}

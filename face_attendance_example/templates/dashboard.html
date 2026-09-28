@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<h1>Hệ thống nhận diện khuôn mặt điểm danh</h1>
+<p class="muted">Quản lý sinh viên, đăng ký khuôn mặt, điểm danh real-time và lịch sử.</p>
+
+<div class="grid-3">
+    <div class="card stat"><span>Sinh viên</span><strong id="studentCount">-</strong></div>
+    <div class="card stat"><span>Buổi học</span><strong id="sessionCount">-</strong></div>
+    <div class="card stat"><span>Điểm danh</span><strong id="attendanceCount">-</strong></div>
+</div>
+
+<div class="card">
+    <h2>Quy trình hệ thống</h2>
+    <div class="flow">
+        <span>Enrollment</span><b>→</b>
+        <span>Face Detection</span><b>→</b>
+        <span>Embedding</span><b>→</b>
+        <span>Recognition</span><b>→</b>
+        <span>Attendance</span>
+    </div>
+</div>
+
+<div class="actions">
+    <a class="btn primary" href="/enrollment">Đăng ký khuôn mặt</a>
+    <a class="btn" href="/attendance">Bắt đầu điểm danh</a>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function loadDashboard() {
+    const [students, sessions, attendance] = await Promise.all([
+        fetch(API.students).then(r => r.json()),
+        fetch(API.sessions).then(r => r.json()),
+        fetch(API.attendance).then(r => r.json())
+    ]);
+    document.getElementById("studentCount").textContent = students.length;
+    document.getElementById("sessionCount").textContent = sessions.length;
+    document.getElementById("attendanceCount").textContent = attendance.length;
+}
+loadDashboard().catch(console.error);
+</script>
+{% endblock %}

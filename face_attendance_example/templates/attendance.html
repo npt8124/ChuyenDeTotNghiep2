@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Điểm danh{% endblock %}
+{% block content %}
+<h1>Điểm danh real-time</h1>
+
+<div class="card">
+    <h2>Tạo buổi học</h2>
+    <form id="sessionForm" class="form-row">
+        <select id="newClassSelect" required></select>
+        <input id="sessionDate" type="date" required>
+        <input id="startTime" type="time" required>
+        <input id="endTime" type="time">
+        <button class="btn" type="submit">Tạo buổi học</button>
+    </form>
+    <div id="sessionCreateMessage" class="message"></div>
+</div>
+
+<div class="card">
+    <div class="form-row">
+        <select id="classSelect"></select>
+        <select id="sessionSelect"></select>
+        <button class="btn primary" id="startBtn">Bắt đầu camera</button>
+        <button class="btn danger" id="stopBtn">Dừng</button>
+    </div>
+    <div id="sessionMessage" class="message"></div>
+</div>
+
+<div class="two-col">
+    <div class="card camera-card">
+        <video id="video" autoplay playsinline></video>
+        <canvas id="canvas" hidden></canvas>
+    </div>
+
+    <div class="card">
+        <h2>Kết quả</h2>
+        <div id="results"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/attendance.js') }}"></script>
+{% endblock %}

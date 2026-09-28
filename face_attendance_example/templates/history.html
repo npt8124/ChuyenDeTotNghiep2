@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}Lịch sử điểm danh{% endblock %}
+{% block content %}
+<h1>Lịch sử điểm danh</h1>
+
+<div class="card form-row">
+    <input id="classFilter" placeholder="Lọc theo lớp">
+    <input id="dateFilter" type="date">
+    <button class="btn primary" onclick="loadHistory()">Tìm kiếm</button>
+</div>
+
+<div class="card">
+    <table>
+        <thead>
+            <tr>
+                <th>MSSV</th>
+                <th>Họ tên</th>
+                <th>Lớp</th>
+                <th>Ngày</th>
+                <th>Thời gian</th>
+                <th>Similarity</th>
+                <th>Trạng thái</th>
+            </tr>
+        </thead>
+        <tbody id="historyTable"></tbody>
+    </table>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function loadHistory() {
+    const params = new URLSearchParams();
+    const className = document.getElementById("classFilter").value.trim();
+    const date = document.getElementById("dateFilter").value;
+    if (className) params.set("class_name", className);
+    if (date) params.set("date", date);
+
+    const rows = await fetch(`${API.attendance}?${params}`).then(r => r.json());
+
+    document.getElementById("historyTable").innerHTML = rows.map(r => `
+        <tr>
+            <td>${escapeHtml(r.student_code)}</td>
+            <td>${escapeHtml(r.full_name)}</td>
+            <td>${escapeHtml(r.class_name)}</td>
+            <td>${r.session_date}</td>
+            <td>${r.check_in_time}</td>
+            <td>${r.similarity == null ? "-" : Number(r.similarity).toFixed(4)}</td>
+            <td>
+                <select onchange="updateStatus(${r.id}, this.value)">
+                    ${["Present","Late","Absent"].map(x =>
+                        `<option ${x === r.status ? "selected" : ""}>${x}</option>`
+                    ).join("")}
+                </select>
+            </td>
+        </tr>
+    `).join("");
+}
+
+function escapeHtml(value) {
+    return String(value ?? "").replace(/[&<>"']/g, c => ({
+        "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#039;"
+    }[c]));
+}
+
+async function updateStatus(id, status) {
+    await fetch(`${API.attendance}/${id}`, {
+        method: "PUT",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({status})
+    });
+}
+
+loadHistory();
+</script>
+{% endblock %}
