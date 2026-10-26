@@ -1,0 +1,37 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>Đăng ký khuôn mặt: {{ student.full_name }}</h2>
+<p>MSSV: {{ student.code }} | Lớp: {{ student.school_class.code }}</p>
+<div class="alert alert-warning">Chỉ đăng ký khi người được chụp đồng ý. Mỗi ảnh phải có đúng một khuôn mặt. Nên lưu 5 ảnh/người với góc chụp khác nhau.</div>
+<div class="row g-4 mb-4">
+  <div class="col-lg-5">
+    <form method="post" enctype="multipart/form-data" class="card p-3 h-100">
+      <h4>Cách 1: Upload ảnh</h4>
+      <label class="form-label" for="image">Ảnh JPG/PNG</label>
+      <input id="image" type="file" name="image" accept="image/jpeg,image/png" class="form-control mb-3" required>
+      <button class="btn btn-primary">Tải ảnh và tạo embedding</button>
+    </form>
+  </div>
+  <div class="col-lg-7">
+    <div class="card p-3 h-100">
+      <h4>Cách 2: Chụp bằng camera</h4>
+      <p class="text-muted">Mở camera, nhìn vào ống kính rồi chụp. Có thể chụp lại trước khi lưu.</p>
+      <video id="enroll-video" autoplay playsinline muted class="w-100 rounded bg-dark" style="max-height:360px;object-fit:contain"></video>
+      <canvas id="enroll-canvas" hidden></canvas>
+      <img id="enroll-preview" class="w-100 rounded mt-2" style="max-height:360px;object-fit:contain;display:none" alt="Ảnh vừa chụp">
+      <div class="d-flex gap-2 flex-wrap mt-3">
+        <button id="enroll-start" type="button" class="btn btn-outline-primary">Mở camera</button>
+        <button id="enroll-capture" type="button" class="btn btn-primary" disabled>Chụp ảnh</button>
+        <button id="enroll-retake" type="button" class="btn btn-outline-secondary" disabled>Chụp lại</button>
+        <button id="enroll-save" type="button" class="btn btn-success" disabled>Lưu khuôn mặt</button>
+        <button id="enroll-stop" type="button" class="btn btn-outline-danger" disabled>Tắt camera</button>
+      </div>
+      <div id="enroll-message" class="alert alert-secondary mt-3 mb-0" role="status">Chưa mở camera.</div>
+    </div>
+  </div>
+</div>
+<h4>Đã lưu {{ student.faces|length }} ảnh</h4>
+<div class="row g-3">{% for face in student.faces %}<div class="col-md-3"><div class="card p-3"><p>Ảnh #{{ face.id }}</p><form method="post" action="{{ url_for('delete_face',face_id=face.id) }}" onsubmit="return confirm('Xóa ảnh và embedding?')"><button class="btn btn-outline-danger btn-sm">Xóa ảnh</button></form></div></div>{% endfor %}</div>
+<script>const enrollEndpoint = {{ url_for('enroll_camera', student_id=student.id)|tojson }};</script>
+<script src="{{ url_for('static', filename='enroll_camera.js') }}"></script>
+{% endblock %}
