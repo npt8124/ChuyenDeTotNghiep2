@@ -5,7 +5,6 @@ Stack: Python 3.11, Flask, Bootstrap 5, SQLite/SQLAlchemy, OpenCV, DeepFace, Ret
 ## Cài đặt trên Windows PowerShell
 
 ```powershell
-cd "D:\Learning\Chuyên đề TN 2\face_attendance"
 py -3.11 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
