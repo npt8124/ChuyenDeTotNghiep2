@@ -42,6 +42,19 @@ PREVIEW_DIR = Path(app.instance_path) / 'import_previews'
 PREVIEW_DIR.mkdir(parents=True, exist_ok=True)
 
 
+def _save_image_unicode_safe(image, path):
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    extension = path.suffix.lower() or '.jpg'
+    success, buffer = cv2.imencode(extension, image)
+    if not success or buffer is None:
+        raise OSError(f'OpenCV không mã hóa được ảnh với định dạng {extension}.')
+    written = path.write_bytes(buffer.tobytes())
+    if written <= 0 or not path.is_file():
+        raise OSError('Không ghi được dữ liệu ảnh xuống ổ đĩa.')
+    return path
+
+
 def _normalize_header(value):
     value = unicodedata.normalize('NFD', str(value or '').strip().casefold())
     value = ''.join(ch for ch in value if unicodedata.category(ch) != 'Mn')
@@ -367,13 +380,21 @@ def enroll(student_id):
             from recognition import encode_one
             embedding = encode_one(image)
         except Exception as exc:
-            flash('Không đăng ký được khuôn mặt. Lỗi không xác định được khuôn mặt ', 'danger')
+            flash('Không đăng ký được khuôn mặt: ' + str(exc), 'danger')
             return redirect(url_for('enroll', student_id=student_id))
         filename = f'{student.id}_{uuid.uuid4().hex}.jpg'
         path = Path(app.config['UPLOAD_FOLDER']) / filename
-        cv2.imwrite(str(path), image)
-        db.session.add(FaceSample(student_id=student.id, image_path=filename, embedding_json=json.dumps(embedding)))
-        db.session.commit()
+        try:
+            _save_image_unicode_safe(image, path)
+            db.session.add(FaceSample(student_id=student.id, image_path=filename,
+                                      embedding_json=json.dumps(embedding)))
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+            path.unlink(missing_ok=True)
+            app.logger.exception('Không lưu được ảnh khuôn mặt upload cho student_id=%s', student.id)
+            flash('Không lưu được ảnh hoặc dữ liệu khuôn mặt. Kiểm tra quyền ghi thư mục uploads/faces và log máy chủ.', 'danger')
+            return redirect(url_for('enroll', student_id=student_id))
         flash('Đăng ký khuôn mặt thành công.', 'success')
         return redirect(url_for('enroll', student_id=student_id))
     return render_template('enroll.html', student=student)
@@ -396,11 +417,19 @@ def enroll_camera(student_id):
         from recognition import encode_one
         embedding = encode_one(image)
     except (ValueError, Exception) as exc:
-        return jsonify(error='Không đăng ký được khuôn mặt. Lỗi không xác định được khuôn mặt '), 400 # + str(exc)
+        return jsonify(error='Không đăng ký được khuôn mặt: ' + str(exc)), 400
     filename = f'{student.id}_{uuid.uuid4().hex}.jpg'
     path = Path(app.config['UPLOAD_FOLDER']) / filename
-    if not cv2.imwrite(str(path), image):
-        return jsonify(error='Không lưu được ảnh.'), 500
+    try:
+        _save_image_unicode_safe(image, path)
+    except Exception:
+        path.unlink(missing_ok=True)
+        app.logger.exception('Không lưu được file ảnh camera cho student_id=%s tại %s',
+                             student.id, path)
+        return jsonify(error=(
+            'Không ghi được file ảnh vào thư mục lưu trữ. '
+            'Kiểm tra thư mục uploads/faces, quyền ghi và log terminal.'
+        )), 500
     try:
         db.session.add(FaceSample(student_id=student.id, image_path=filename,
                                   embedding_json=json.dumps(embedding)))
@@ -408,7 +437,8 @@ def enroll_camera(student_id):
     except Exception:
         db.session.rollback()
         path.unlink(missing_ok=True)
-        return jsonify(error='Không lưu được dữ liệu vào database.'), 500
+        app.logger.exception('Không lưu được FaceSample vào SQLite cho student_id=%s', student.id)
+        return jsonify(error='Ảnh đã được tạo nhưng không lưu được dữ liệu vào database. Kiểm tra log máy chủ.'), 500
     return jsonify(message='Đã lưu ảnh camera.', total=len(student.faces))
 
 @app.post('/faces/<int:face_id>/delete')
