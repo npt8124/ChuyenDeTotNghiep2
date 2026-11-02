@@ -43,7 +43,7 @@ Quy trình: Thêm lớp -> Thêm sinh viên -> Upload 3-5 ảnh một người -
 7. Đánh giá độc lập tỷ lệ nhận diện đúng, false acceptance, false rejection, latency.
 
 ## Nguồn mô hình
-https://github.com/serengil/deepface — thư viện DeepFace, model ArcFace pretrained, detector RetinaFace. Trọng số không đóng gói trong ZIP. Kiểm tra license của mô hình và bộ dữ liệu trước khi triển khai thực tế.
+https://github.com/serengil/deepface — thư viện DeepFace, model ArcFace pretrained, detector RetinaFace. 
 
 ## Đăng ký bằng webcam
 Vào Sinh viên → Đăng ký khuôn mặt → Cách 2: Chụp bằng camera. Chọn Mở camera → Chụp ảnh → Lưu khuôn mặt. Ảnh và embedding được lưu vào hệ thống hiện tại, không cần tạo lại database. Trình duyệt cần quyền camera và truy cập qua localhost hoặc HTTPS.
@@ -55,3 +55,10 @@ Vào Sinh viên → Đăng ký khuôn mặt → Cách 2: Chụp bằng camera. C
 - Chỉnh sửa thủ công sang Vắng: ẩn thời gian điểm danh trong giao diện.
 - Database SQLite cũ vẫn được giữ. Với các buổi tạo từ phiên bản cũ, sinh viên chưa có bản ghi sẽ hiển thị là Vắng; bản ghi sẽ được tạo khi thao tác chỉnh sửa hoặc nhận diện.
 - Giữ nguyên schema cũ (`recorded_at` NOT NULL) để tương thích SQLite hiện tại. Với trạng thái Vắng, timestamp nội bộ không phải thời gian có mặt và không được hiển thị.
+
+
+## Các chức năng bổ sung
+- Import sinh viên: hỗ trợ `.xlsx` và `.csv`, tiêu đề cột `MSSV` và `Họ tên`; chọn lớp trên giao diện; có bước xem trước và bỏ qua dòng lỗi/MSSV trùng.
+- Điểm danh: lưu `match_distance` cho lần nhận diện tự động; giao diện hiển thị điểm tương đồng quy đổi `(1 - cosine_distance) × 100`. Đây là điểm tương đồng, KHÔNG phải xác suất nhận diện đúng. Database cũ được bổ sung cột bằng migration SQLite khi khởi động, không xóa dữ liệu.
+- Anti-Spoofing: chỉ bật trong API điểm danh camera realtime qua `DeepFace.extract_faces(..., anti_spoofing=True)` (FasNet). Hai cách đăng ký khuôn mặt upload ảnh và chụp camera vẫn giữ nguyên, không chạy kiểm tra anti-spoofing. Lần đầu có thể cần tải trọng số FasNet. Cần kiểm thử thực tế; không bảo đảm phát hiện mọi kiểu giả mạo.
+- Cài dependency mới: `python -m pip install -r requirements.txt`.
