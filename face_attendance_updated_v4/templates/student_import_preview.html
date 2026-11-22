@@ -1,0 +1,6 @@
+{% extends 'base.html' %}{% block content %}
+<h2>Xem trước danh sách import</h2><p>Lớp nhận: <b>{{ school_class.code }} — {{ school_class.name }}</b></p>
+<div class="alert alert-info">Tổng {{ rows|length }} dòng; hợp lệ {{ valid_count }}; cần bỏ qua {{ rows|length - valid_count }} dòng. Chỉ các dòng hợp lệ mới được nhập.</div>
+<div class="table-responsive"><table class="table table-sm table-bordered"><thead><tr><th>Dòng</th><th>MSSV</th><th>Họ tên</th><th>Kiểm tra</th></tr></thead><tbody>{% for row in rows %}<tr class="{% if row.errors %}table-warning{% else %}table-success{% endif %}"><td>{{ row.line }}</td><td>{{ row.code }}</td><td>{{ row.name }}</td><td>{% if row.errors %}{{ row.errors|join('; ') }}{% else %}Hợp lệ{% endif %}</td></tr>{% endfor %}</tbody></table></div>
+<form method="post" action="{{ url_for('students_import_confirm') }}" class="d-flex gap-2"><input type="hidden" name="token" value="{{ token }}"><button class="btn btn-success" {% if valid_count == 0 %}disabled{% endif %}>Xác nhận nhập {{ valid_count }} sinh viên</button><a href="{{ url_for('students') }}" class="btn btn-outline-secondary">Hủy</a></form>
+{% endblock %}
