@@ -5,6 +5,12 @@ from sqlalchemy import LargeBinary, UniqueConstraint
 
 db = SQLAlchemy()
 
+student_class = db.Table(
+    'student_class',
+    db.Column('student_id', db.Integer, db.ForeignKey('student.id'), primary_key=True),
+    db.Column('class_id', db.Integer, db.ForeignKey('school_class.id'), primary_key=True),
+)
+
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
@@ -15,14 +21,15 @@ class SchoolClass(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     code = db.Column(db.String(30), unique=True, nullable=False)
     name = db.Column(db.String(150), nullable=False)
-    students = db.relationship('Student', back_populates='school_class')
+    students = db.relationship('Student', secondary=student_class, back_populates='classes')
 
 class Student(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     code = db.Column(db.String(30), unique=True, nullable=False)
     full_name = db.Column(db.String(150), nullable=False)
     class_id = db.Column(db.Integer, db.ForeignKey('school_class.id'), nullable=False)
-    school_class = db.relationship('SchoolClass', back_populates='students')
+    school_class = db.relationship('SchoolClass')
+    classes = db.relationship('SchoolClass', secondary=student_class, back_populates='students')
     faces = db.relationship('FaceSample', cascade='all, delete-orphan', back_populates='student')
 
 class FaceSample(db.Model):

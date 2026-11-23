@@ -66,7 +66,7 @@ def recognize(image, class_id, anti_spoofing=False):
         if liveness.get('label') != 'live':
             return liveness
     samples = (FaceSample.query.join(Student)
-               .filter(Student.class_id == class_id).all())
+               .filter(Student.classes.any(id=class_id)).all())
     if not samples:
         return {'label': 'no_enrollment', 'message': 'Lớp chưa có dữ liệu khuôn mặt.'}
     faces = embeddings(image)

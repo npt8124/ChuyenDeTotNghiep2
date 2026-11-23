@@ -35,6 +35,10 @@ def load_user(user_id):
 with app.app_context():
     db.create_all()
     # Additive SQLite migrations: preserve existing users and attendance records.
+    db.session.execute(text(
+        "INSERT OR IGNORE INTO student_class (student_id, class_id) "
+        "SELECT id, class_id FROM student"
+    ))
     user_columns = {row[1] for row in db.session.execute(text("PRAGMA table_info(user)"))}
     if 'role' not in user_columns:
         db.session.execute(text(
@@ -296,6 +300,8 @@ def _student_name_sort_key(student):
 @app.route('/students', methods=['GET', 'POST'])
 @staff_required
 def students():
+    classes = SchoolClass.query.order_by(SchoolClass.code).all()
+
     if request.method == 'POST':
         code = request.form.get('code', '').strip()
         name = request.form.get('name', '').strip()
@@ -303,41 +309,81 @@ def students():
         if not code or not name or not db.session.get(SchoolClass, class_id):
             flash('Dữ liệu sinh viên không hợp lệ.', 'danger')
         else:
-            try:
-                db.session.add(Student(code=code, full_name=name, class_id=class_id))
-                db.session.commit()
-                flash('Đã thêm sinh viên.', 'success')
-            except IntegrityError:
-                db.session.rollback()
-                flash('Mã sinh viên đã tồn tại.', 'danger')
-        return redirect(url_for('students'))
-    student_rows = Student.query.all()
+            student = Student.query.filter_by(code=code).first()
+            if student and any(school_class.id == class_id for school_class in student.classes):
+                flash('Sinh viên này đã có trong lớp.', 'warning')
+            else:
+                try:
+                    if student is None:
+                        student = Student(code=code, full_name=name, class_id=class_id)
+                        db.session.add(student)
+                    student.classes.append(db.session.get(SchoolClass, class_id))
+                    db.session.commit()
+                    flash('Đã thêm sinh viên vào lớp; dữ liệu khuôn mặt hiện có được giữ nguyên.', 'success')
+                except IntegrityError:
+                    db.session.rollback()
+                    flash('Không thể thêm sinh viên. Hãy kiểm tra MSSV và thử lại.', 'danger')
+        return redirect(url_for('students', class_id=class_id))
+
+    selected_class_id = request.args.get('class_id', type=int)
+    if selected_class_id is None and classes:
+        selected_class_id = classes[0].id
+    if selected_class_id is not None:
+        selected_class = db.session.get(SchoolClass, selected_class_id)
+        if not selected_class:
+            selected_class_id = classes[0].id if classes else None
+
+    selected_class = db.session.get(SchoolClass, selected_class_id) if selected_class_id is not None else None
+    student_rows = selected_class.students if selected_class else []
     student_rows.sort(key=_student_name_sort_key)
-    return render_template('students.html', students=student_rows, classes=SchoolClass.query.order_by(SchoolClass.code).all())
+    return render_template(
+        'students.html',
+        students=student_rows,
+        classes=classes,
+        selected_class_id=selected_class_id,
+        selected_class=selected_class,
+    )
 
 
 @app.post('/students/<int:student_id>/delete')
 @staff_required
 def delete_student(student_id):
     student = db.get_or_404(Student, student_id)
+    class_id = request.form.get('class_id', type=int)
+    school_class = db.session.get(SchoolClass, class_id)
+    if not school_class or school_class not in student.classes:
+        abort(400)
 
-    # Collect registered face image paths before deleting related database rows.
-    face_paths = [
-        Path(app.config['UPLOAD_FOLDER']) / Path(face.image_path).name
-        for face in student.faces
+    remaining_classes = [
+        enrolled_class for enrolled_class in student.classes
+        if enrolled_class.id != school_class.id
     ]
+    face_paths = []
+    if not remaining_classes:
+        face_paths = [
+            Path(app.config['UPLOAD_FOLDER']) / Path(face.image_path).name
+            for face in student.faces
+        ]
 
     try:
-        # A student may appear in past attendance sessions. Remove those rows
-        # explicitly because Attendance.student_id is a non-null foreign key.
-        Attendance.query.filter_by(student_id=student.id).delete(synchronize_session=False)
-        db.session.delete(student)  # FaceSample rows are cascade-deleted by relationship.
+        class_session_ids = db.session.query(Session.id).filter_by(class_id=school_class.id)
+        Attendance.query.filter(
+            Attendance.student_id == student.id,
+            Attendance.session_id.in_(class_session_ids),
+        ).delete(synchronize_session=False)
+        student.classes.remove(school_class)
+        if remaining_classes:
+            if student.class_id == school_class.id:
+                student.class_id = remaining_classes[0].id
+        else:
+            Attendance.query.filter_by(student_id=student.id).delete(synchronize_session=False)
+            db.session.delete(student)
         db.session.commit()
     except Exception:
         db.session.rollback()
-        app.logger.exception('Could not delete student %s', student_id)
-        flash('Không thể xóa sinh viên. Vui lòng kiểm tra log máy chủ.', 'danger')
-        return redirect(url_for('students'))
+        app.logger.exception('Could not remove student %s from class %s', student_id, class_id)
+        flash('Không thể gỡ sinh viên khỏi lớp. Vui lòng kiểm tra log máy chủ.', 'danger')
+        return redirect(url_for('students', class_id=class_id))
 
     for face_path in face_paths:
         try:
@@ -345,8 +391,11 @@ def delete_student(student_id):
         except OSError:
             app.logger.exception('Could not remove face image %s', face_path)
 
-    flash('Đã xóa sinh viên cùng ảnh khuôn mặt và các bản ghi điểm danh liên quan.', 'success')
-    return redirect(url_for('students'))
+    if remaining_classes:
+        flash('Đã gỡ sinh viên khỏi lớp này; các lớp khác và dữ liệu khuôn mặt được giữ nguyên.', 'success')
+    else:
+        flash('Đã xóa sinh viên khỏi lớp cuối cùng cùng ảnh khuôn mặt và dữ liệu điểm danh.', 'success')
+    return redirect(url_for('students', class_id=class_id))
 
 
 @app.post('/students/import/preview')
@@ -364,11 +413,14 @@ def students_import_preview():
         flash(str(exc), 'danger')
         return redirect(url_for('students'))
 
-    existing = {code for (code,) in db.session.query(Student.code).all()}
+    existing = {student.code: student for student in Student.query.all()}
     seen = set()
     for row in rows:
-        if row['code'] and row['code'] in existing:
-            row['errors'].append('MSSV đã tồn tại trong hệ thống')
+        student = existing.get(row['code'])
+        if student and any(enrolled_class.id == class_id for enrolled_class in student.classes):
+            row['errors'].append('MSSV đã có trong lớp')
+        elif student:
+            row['existing_student'] = True
         if row['code'] and row['code'] in seen:
             row['errors'].append('MSSV bị lặp trong file')
         if row['code']:
@@ -394,15 +446,24 @@ def students_import_confirm():
     school_class = db.session.get(SchoolClass, payload.get('class_id'))
     if not school_class:
         abort(400)
-    existing = {code for (code,) in db.session.query(Student.code).all()}
+    existing = {student.code: student for student in Student.query.all()}
     imported = skipped = 0
     try:
         for row in payload['rows']:
-            if row['errors'] or not row['code'] or row['code'] in existing:
+            if row['errors'] or not row['code']:
                 skipped += 1
                 continue
-            db.session.add(Student(code=row['code'], full_name=row['name'], class_id=school_class.id))
-            existing.add(row['code'])
+            student = existing.get(row['code'])
+            if student is None:
+                student = Student(
+                    code=row['code'], full_name=row['name'], class_id=school_class.id
+                )
+                db.session.add(student)
+                existing[row['code']] = student
+            elif any(enrolled_class.id == school_class.id for enrolled_class in student.classes):
+                skipped += 1
+                continue
+            student.classes.append(school_class)
             imported += 1
         db.session.commit()
     except Exception:
@@ -522,7 +583,7 @@ def sessions():
             new_session = Session(title=title, class_id=class_id)
             db.session.add(new_session)
             db.session.flush()
-            enrolled_students = Student.query.filter_by(class_id=class_id).all()
+            enrolled_students = new_session.school_class.students
             for student in enrolled_students:
                 db.session.add(Attendance(
                     session_id=new_session.id, student_id=student.id,
@@ -549,7 +610,7 @@ def close_session(session_id):
 def session_detail(session_id):
     s = db.get_or_404(Session, session_id)
     rows = Attendance.query.filter_by(session_id=session_id).all()
-    students = Student.query.filter_by(class_id=s.class_id).all()
+    students = s.school_class.students
     attendance_by_student = {a.student_id: a for a in rows}
     # Nhóm theo trạng thái trước; trong từng nhóm sắp tên theo quy tắc Việt
     # từ phải sang trái: tên gọi, các từ đệm, sau cùng là họ.
@@ -566,7 +627,7 @@ def session_detail(session_id):
 def edit_attendance(session_id, student_id):
     s = db.get_or_404(Session, session_id)
     student = db.get_or_404(Student, student_id)
-    if student.class_id != s.class_id:
+    if s.school_class not in student.classes:
         abort(400)
     status = request.form.get('status')
     if status not in ('present', 'late', 'absent'):

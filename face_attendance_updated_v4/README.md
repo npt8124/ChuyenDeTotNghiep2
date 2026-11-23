@@ -21,7 +21,7 @@ python app.py
 
 Tài khoản tạo bằng key luôn có vai trò giảng viên; chỉ tài khoản quản trị/giảng viên đăng nhập được. Sinh viên không cần tạo tài khoản: trang chủ công khai hiển thị các buổi đang mở và cho phép vào camera điểm danh. Danh sách sinh viên, lịch sử và ảnh điểm danh chỉ dành cho tài khoản nhân viên.
 
-Quy trình: Thêm lớp -> Thêm sinh viên -> Upload 3-5 ảnh một người -> Tạo buổi điểm danh -> Mở camera -> Tra cứu/chỉnh sửa kết quả -> Kết thúc buổi.
+Quy trình: Thêm lớp -> Thêm sinh viên vào một hoặc nhiều lớp -> Upload 3-5 ảnh một người -> Tạo buổi điểm danh -> Mở camera -> Tra cứu/chỉnh sửa kết quả -> Kết thúc buổi. MSSV là hồ sơ sinh viên dùng chung; thêm MSSV đã có vào lớp khác sẽ giữ nguyên ảnh và dữ liệu khuôn mặt.
 
 **Không cần tải SQLite database.** Khi chạy `app.py`, SQLAlchemy tự tạo `instance/attendance.db` và các bảng. Cần tự nhập lớp/sinh viên và ảnh đã có sự đồng ý. Không đưa ảnh, embeddings hoặc DB lên GitHub.
 
@@ -65,7 +65,8 @@ Vào Sinh viên → Đăng ký khuôn mặt → Cách 2: Chụp bằng camera. C
 
 
 ## Các chức năng bổ sung
-- Import sinh viên: hỗ trợ `.xlsx` và `.csv`, tiêu đề cột `MSSV` và `Họ tên`; chọn lớp trên giao diện; có bước xem trước và bỏ qua dòng lỗi/MSSV trùng.
+- Import sinh viên: hỗ trợ `.xlsx` và `.csv`, tiêu đề cột `MSSV` và `Họ tên`; chọn lớp trên giao diện; có bước xem trước và bỏ qua dòng lỗi/MSSV đã có trong lớp. MSSV đã có ở lớp khác được thêm vào lớp đã chọn mà không tạo lại hồ sơ hoặc ảnh khuôn mặt.
+- Nhiều lớp: sinh viên có thể thuộc nhiều lớp; dữ liệu khuôn mặt dùng chung cho hồ sơ sinh viên và được dùng nhận diện trong các buổi của từng lớp. Gỡ sinh viên khỏi một lớp chỉ xóa điểm danh của lớp đó, giữ các lớp khác và dữ liệu khuôn mặt; nếu đó là lớp cuối cùng thì hồ sơ và dữ liệu liên quan được xóa. Khi khởi động, migration bổ sung quan hệ lớp-sinh viên cho các bản ghi cũ.
 - Điểm danh: lưu `match_distance` cho lần nhận diện tự động; giao diện hiển thị điểm tương đồng quy đổi `(1 - cosine_distance) × 100`. Đây là điểm tương đồng, KHÔNG phải xác suất nhận diện đúng. Database cũ được bổ sung cột bằng migration SQLite khi khởi động, không xóa dữ liệu.
 - Khi ghi nhận một lần điểm danh tự động mới, ảnh frame tương ứng được mã hóa PNG và lưu trực tiếp trong cột BLOB của database. Ảnh không được thay bằng các frame nhận diện lặp lại; thao tác sửa thủ công xóa ảnh/điểm tương đồng để không gắn nhầm ảnh nhận diện vào kết quả thủ công. Dữ liệu ảnh làm database tăng nhanh, nên cần chính sách lưu trữ/xóa phù hợp.
 - Camera xin độ phân giải ưu tiên 1280×720 và gửi ảnh JPEG chất lượng cao hơn; thiết bị/trình duyệt có thể trả về độ phân giải thấp hơn. Chất lượng còn phụ thuộc camera, ánh sáng, khoảng cách và dữ liệu đăng ký; tăng độ phân giải không đảm bảo tăng độ chính xác.
